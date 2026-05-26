@@ -569,8 +569,11 @@ async function seedDefaultAdmin() {
     });
     if (!error) {
       ACCOUNTS = [{ id:'admin', name:'관리자', role:'admin', pwHash: hash }];
-      document.getElementById('loginHint').style.display = 'block';
     }
+  }
+  // 계정이 1개(기본 admin)만 있으면 로그인 힌트 표시
+  if (ACCOUNTS.length === 1 && ACCOUNTS[0].id === 'admin') {
+    document.getElementById('loginHint').style.display = 'block';
   }
 }
 
@@ -1069,12 +1072,18 @@ function renderUserList() {
 // ════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   showLoading('시스템 초기화 중...');
+  // 10초 안에 초기화 안 되면 강제 해제
+  const initTimeout = setTimeout(() => {
+    hideLoading();
+    document.getElementById('loginErr').textContent = '⚠️ 서버 응답 시간 초과. 페이지를 새로고침하세요.';
+  }, 10000);
   try {
     await seedDefaultAdmin();
   } catch(err) {
     console.error('Init error:', err);
     document.getElementById('loginErr').textContent = '⚠️ Supabase 연결 오류. URL과 KEY 설정을 확인하세요.';
   } finally {
+    clearTimeout(initTimeout);
     hideLoading();
   }
   const saved = sessionStorage.getItem('vld_session');
