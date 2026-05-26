@@ -195,7 +195,6 @@
     }
   </style>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -499,7 +498,51 @@
 // ════════════════════════════════════════
 const SUPABASE_URL      = 'https://shzwqgudckkmxkaecwqu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_secret_kAfUW42t216sgeAfFsPYLQ_PET9tQaV';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── Supabase SDK 대신 직접 REST API 사용 (브라우저 SDK 인증 오류 우회) ──
+async function sbFetch(method, table, params, body) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}` + (params ? `?${params}` : '');
+  const headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (body !== undefined) headers['Prefer'] = 'return=minimal';
+  try {
+    const r = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const text = await r.text();
+    const data = text ? JSON.parse(text) : [];
+    if (!r.ok) return { data: null, error: { message: text || `HTTP ${r.status}`, status: r.status } };
+    return { data: Array.isArray(data) ? data : (data ? [data] : []), error: null };
+  } catch(e) {
+    return { data: null, error: { message: e.message } };
+  }
+}
+const sb = {
+  from(table) {
+    return {
+      select(cols = '*') {
+        const base = `select=${cols}`;
+        return {
+          order(col, opts = {}) {
+            const dir = opts.ascending === false ? 'desc' : 'asc';
+            return sbFetch('GET', table, `${base}&order=${col}.${dir}`);
+          },
+          then(res, rej) { return sbFetch('GET', table, base).then(res, rej); },
+          catch(rej)     { return sbFetch('GET', table, base).catch(rej); }
+        };
+      },
+      insert(body)  { return sbFetch('POST',   table, '',                                          body); },
+      update(body)  { return { eq(c,v){ return sbFetch('PATCH',  table, `${c}=eq.${encodeURIComponent(String(v))}`, body); } }; },
+      delete()      { return { eq(c,v){ return sbFetch('DELETE', table, `${c}=eq.${encodeURIComponent(String(v))}`       ); } }; }
+    };
+  }
+};
 
 // ════════════════════════════════
 //  전역 상태
