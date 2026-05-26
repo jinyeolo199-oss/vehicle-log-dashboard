@@ -494,31 +494,19 @@
 
 <script>
 // ════════════════════════════════════════
-//  ▶ SUPABASE 설정 (아래 두 값을 입력하세요)
+//  ▶ API 프록시 설정 (secret key는 서버에서만 사용)
 // ════════════════════════════════════════
-const SUPABASE_URL      = 'https://shzwqgudckkmxkaecwqu.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_secret_kAfUW42t216sgeAfFsPYLQ_PET9tQaV';
 
-// ── Supabase SDK 대신 직접 REST API 사용 (브라우저 SDK 인증 오류 우회) ──
+// ── /api/proxy 서버리스 함수를 통해 Supabase 접근 ──
 async function sbFetch(method, table, params, body) {
-  const url = `${SUPABASE_URL}/rest/v1/${table}` + (params ? `?${params}` : '');
-  const headers = {
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  if (body !== undefined) headers['Prefer'] = 'return=minimal';
   try {
-    const r = await fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined
+    const r = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method, table, params, body })
     });
-    const text = await r.text();
-    const data = text ? JSON.parse(text) : [];
-    if (!r.ok) return { data: null, error: { message: text || `HTTP ${r.status}`, status: r.status } };
-    return { data: Array.isArray(data) ? data : (data ? [data] : []), error: null };
+    if (!r.ok) return { data: null, error: { message: `프록시 오류 HTTP ${r.status}`, status: r.status } };
+    return await r.json();
   } catch(e) {
     return { data: null, error: { message: e.message } };
   }
