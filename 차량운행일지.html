@@ -180,6 +180,7 @@
       .span2 { grid-column: span 1; }
     }
   </style>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -359,7 +360,7 @@
       </select>
       <label>기간(월)</label>
       <input type="month" id="lFilterMonth" onchange="renderList()">
-      <button class="btn btn-success btn-sm" onclick="exportLogsCSV()">📥 CSV 다운로드</button>
+      <button class="btn btn-success btn-sm" onclick="exportLogsCSV()">📥 엑셀 다운로드</button>
       <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ 인쇄</button>
     </div>
     <div class="table-wrap">
@@ -810,12 +811,12 @@ function renderDashboard() {
 // ════════════════════════════════
 //  CSV
 // ════════════════════════════════
-function dl(headers,rows,name) {
-  const csv='﻿'+[headers,...rows].map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-  a.download=`${name}_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+function dl(headers,rows,name,sheetName='운행일지') {
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=headers.map((h,i)=>({wch:Math.max(String(h).length,...rows.map(r=>String(r[i]??'').length))+2}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  XLSX.writeFile(wb,`${name}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 function exportLogsCSV() {
@@ -831,8 +832,8 @@ function exportLogsCSV() {
     l.fuelAmt||0, l.fuelL||0, l.toll||0,
     l.repairAmt||0, l.repairNote||'', l.dept.time, l.arr.time
   ]);
-  dl(h,r,`운행일지_${document.getElementById('lFilterMonth').value||'전체'}`);
-  toast('CSV 다운로드 완료 📥');
+  dl(h,r,`운행일지_${document.getElementById('lFilterMonth').value||'전체'}`,'운행일지');
+  toast('엑셀 다운로드 완료 📥');
 }
 
 function exportDashCSV() {
@@ -847,8 +848,8 @@ function exportDashCSV() {
   });
   const h=['차량번호','운행횟수','총주행거리(km)','주유비(원)','주유량(L)','통행료(원)','수리비(원)','총비용(원)'];
   const rows=Object.entries(vm).map(([vnum,r])=>[vnum,r.trips,r.dist,r.fuel,r.fuelL,r.toll,r.repair,r.fuel+r.toll+r.repair]);
-  dl(h,rows,`월별대시보드_${yr}년${parseInt(mo)}월`);
-  toast('대시보드 CSV 다운로드 완료 📥');
+  dl(h,rows,`월별대시보드_${yr}년${parseInt(mo)}월`,'월별대시보드');
+  toast('대시보드 엑셀 다운로드 완료 📥');
 }
 
 // ════════════════════════════════
