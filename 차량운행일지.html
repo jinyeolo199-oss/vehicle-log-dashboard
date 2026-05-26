@@ -600,21 +600,33 @@ async function doLogin(e) {
   const pw    = document.getElementById('loginPw').value;
   const errEl = document.getElementById('loginErr');
   errEl.textContent = '';
+
+  // ACCOUNTS가 비어있으면 Supabase 연결 실패 상태
+  if (ACCOUNTS.length === 0) {
+    showLoading('계정 정보 다시 불러오는 중...');
+    await fetchAccounts();
+    hideLoading();
+    if (ACCOUNTS.length === 0) {
+      errEl.textContent = '⚠️ 서버 연결 실패. 페이지를 새로고침(F5)하세요.';
+      return;
+    }
+  }
+
   showLoading('로그인 중...');
   try {
     const hash = await sha256(pw);
-    const { data, error } = await sb.from('vld_users').select('*').eq('id', id).eq('pw_hash', hash);
-    if (error || !data || data.length === 0) {
+    // 서버 재요청 없이 시작 시 로드된 ACCOUNTS 캐시에서 직접 검증
+    const user = ACCOUNTS.find(a => a.id === id && a.pwHash === hash);
+    if (!user) {
       errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
       document.getElementById('loginPw').value = '';
       return;
     }
-    const user = data[0];
     SESSION = { id: user.id, name: user.name, role: user.role };
     sessionStorage.setItem('vld_session', JSON.stringify(SESSION));
     await startApp();
   } catch(err) {
-    errEl.textContent = '서버 연결 오류. Supabase 설정을 확인하세요.';
+    errEl.textContent = '오류 발생. 페이지를 새로고침(F5)하세요.';
     console.error(err);
   } finally {
     hideLoading();
