@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>차량 운행일지 관리 시스템</title>
+  <title>작업차량 관리 시스템</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #eef2f7; }
@@ -204,7 +204,7 @@
     </form>
     <div class="login-hint" id="loginHint" style="display:none">
       <strong>최초 관리자 계정</strong><br>
-      아이디: <strong>admin</strong> / 비밀번호: <strong>admin1234</strong><br>
+      아이디: <strong>admin</strong> / 비밀번호: <strong>ddtel1234</strong><br>
       <span style="color:#c62828;">로그인 후 비밀번호를 변경하세요.</span>
     </div>
   </div>
@@ -215,7 +215,7 @@
 
 <header>
   <div class="header-top">
-    <h1>🚗 차량 운행일지 관리 시스템</h1>
+    <h1>🚗 작업차량 관리 시스템</h1>
     <div class="header-user">
       <span id="headerUserName" class="user-badge"></span>
       <span id="headerUserRole" class="badge"></span>
@@ -497,7 +497,7 @@ function saveAccounts(a) { localStorage.setItem('vld_accounts', JSON.stringify(a
 
 async function seedDefaultAdmin() {
   if (!loadAccounts()) {
-    saveAccounts([{ id:'admin', name:'관리자', role:'admin', pwHash: await sha256('admin1234') }]);
+    saveAccounts([{ id:'admin', name:'관리자', role:'admin', pwHash: await sha256('ddtel1234') }]);
     document.getElementById('loginHint').style.display = 'block';
   }
 }
