@@ -2,8 +2,23 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>차량 운행일지 관리 시스템</title>
+
+  <!-- ── PWA ── -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a237e">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="운행일지">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!-- MS Tile -->
+  <meta name="msapplication-TileImage" content="/icon-192.png">
+  <meta name="msapplication-TileColor" content="#1a237e">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #eef2f7; }
@@ -1245,6 +1260,15 @@ function renderUserList() {
       <td><button class="btn btn-warning btn-sm" onclick="changePassword('${u.id}')">🔑 변경</button></td>
       <td>${u.id===SESSION?.id?'<span style="color:#999;font-size:0.78rem;">본인</span>':`<button class="btn btn-danger" onclick="deleteUser('${u.id}')">삭제</button>`}</td>
     </tr>`).join('');
+}
+
+// ════════════════════════════════
+//  PWA 서비스워커 등록
+// ════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
 }
 
 // ════════════════════════════════
