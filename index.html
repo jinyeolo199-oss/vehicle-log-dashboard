@@ -183,6 +183,20 @@
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.success { background: #2e7d32; } #toast.error { background: #c62828; }
 
+    /* ══ 인라인 편집 ══ */
+    .btn-edit { background: #1565c0; color: white; font-size: 0.75rem; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; white-space: nowrap; }
+    .btn-edit:hover { background: #0d47a1; }
+    tr.editing { background: #fff8e1 !important; outline: 2px solid #f57f17; box-shadow: 0 2px 8px rgba(245,127,23,0.15); }
+    tr.editing td { background: #fff8e1 !important; padding: 4px 3px !important; vertical-align: middle; white-space: normal !important; }
+    .ie-inp, .ie-sel { border: 1px solid #ffb74d; border-radius: 4px; padding: 4px 5px; font-size: 0.78rem; font-family: inherit; background: white; color: #1a237e; box-sizing: border-box; width: 100%; min-width: 0; }
+    .ie-inp:focus, .ie-sel:focus { outline: none; border-color: #f57f17; background: #fffde7; box-shadow: 0 0 0 2px rgba(245,127,23,0.2); }
+    .ie-num { width: 78px !important; text-align: right; }
+    .ie-wide { width: 120px !important; }
+    .btn-save-ie { background: #1b5e20; color: white; border: none; border-radius: 4px; padding: 5px 9px; font-size: 0.75rem; cursor: pointer; font-weight: bold; font-family: inherit; white-space: nowrap; display: block; width: 100%; }
+    .btn-save-ie:hover { background: #2e7d32; }
+    .btn-cancel-ie { background: #546e7a; color: white; border: none; border-radius: 4px; padding: 5px 9px; font-size: 0.75rem; cursor: pointer; font-weight: bold; font-family: inherit; white-space: nowrap; display: block; width: 100%; margin-top: 3px; }
+    .btn-cancel-ie:hover { background: #37474f; }
+
     @media print {
       #loginScreen, #loadingOverlay, header, nav, .filter-bar, .btn, .del-btn { display: none !important; }
       .card { box-shadow: none; } body { background: white; }
@@ -391,6 +405,7 @@
             <th rowspan="2">특이사항<br>(정비내용)</th>
             <th rowspan="2">출발시간</th>
             <th rowspan="2">도착시간</th>
+            <th rowspan="2">수정</th>
             <th rowspan="2">삭제</th>
           </tr>
           <tr>
@@ -536,6 +551,7 @@ const sb = {
 //  전역 상태
 // ════════════════════════════════
 let _lastFetchError = null;
+let _editingId = null;
 let SESSION  = null;
 let ACCOUNTS = [];
 let DB       = { vehicles: [], logs: [] };
@@ -892,55 +908,62 @@ function getFilteredLogs() {
 
 function renderList() {
   refreshListFilter();
-  const logs  = getFilteredLogs();
-  const tbody = document.getElementById('listBody');
-  const info  = document.getElementById('listInfo');
-  if (!logs.length) { tbody.innerHTML = '<tr><td colspan="18" class="empty">조회된 운행 기록이 없습니다.</td></tr>'; info.textContent = ''; return; }
+  var logs  = getFilteredLogs();
+  var tbody = document.getElementById('listBody');
+  var info  = document.getElementById('listInfo');
+  if (!logs.length) { tbody.innerHTML = '<tr><td colspan="19" class="empty">조회된 운행 기록이 없습니다.</td></tr>'; info.textContent = ''; return; }
 
-  const fmt  = n => n ? n.toLocaleString()+'원' : '-';
-  const fmtL = n => n ? n.toLocaleString()+'L'  : '-';
+  var fmt  = function(n) { return n ? n.toLocaleString()+'원' : '-'; };
+  var fmtL = function(n) { return n ? n.toLocaleString()+'L'  : '-'; };
+  var isAdmin = SESSION && SESSION.role === 'admin';
 
-  tbody.innerHTML = logs.map((l,i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td><span class="badge badge-blue">${l.vehicleNumber}</span></td>
-      <td>${l.date}</td>
-      <td>${catBadge(l.category||'기타')}</td>
-      <td>${l.driver}</td>
-      <td><strong>${(l.dept.odometer||0).toLocaleString()}</strong></td>
-      <td>${l.dept.location}</td>
-      <td style="text-align:left;max-width:130px;white-space:normal;">${l.purpose}</td>
-      <td><strong>${(l.arr.odometer||0).toLocaleString()}</strong></td>
-      <td>${l.arr.location}</td>
-      <td>${fmt(l.fuelAmt)}</td>
-      <td>${fmtL(l.fuelL)}</td>
-      <td>${fmt(l.toll)}</td>
-      <td>${fmt(l.repairAmt)}</td>
-      <td style="max-width:120px;white-space:normal;text-align:left;">${l.repairNote||'-'}</td>
-      <td>${l.dept.time}</td>
-      <td>${l.arr.time}</td>
-      <td><button class="btn btn-danger" onclick="deleteLog('${l.id}')">삭제</button></td>
-    </tr>`).join('');
+  var html = '';
+  for (var i = 0; i < logs.length; i++) {
+    var l = logs[i];
+    var editBtn = isAdmin ? '<button class="btn-edit" onclick="startInlineEdit(\'' + l.id + '\')">✏️ 수정</button>' : '';
+    var delBtn  = '<button class="btn btn-danger" onclick="deleteLog(\'' + l.id + '\')">삭제</button>';
+    html += '<tr data-id="' + l.id + '">' +
+      '<td>' + (i+1) + '</td>' +
+      '<td><span class="badge badge-blue">' + (l.vehicleNumber||'') + '</span></td>' +
+      '<td>' + (l.date||'') + '</td>' +
+      '<td>' + catBadge(l.category||'기타') + '</td>' +
+      '<td>' + (l.driver||'') + '</td>' +
+      '<td><strong>' + (l.dept.odometer||0).toLocaleString() + '</strong></td>' +
+      '<td>' + (l.dept.location||'') + '</td>' +
+      '<td style="text-align:left;max-width:130px;white-space:normal;">' + (l.purpose||'') + '</td>' +
+      '<td><strong>' + (l.arr.odometer||0).toLocaleString() + '</strong></td>' +
+      '<td>' + (l.arr.location||'') + '</td>' +
+      '<td>' + fmt(l.fuelAmt) + '</td>' +
+      '<td>' + fmtL(l.fuelL) + '</td>' +
+      '<td>' + fmt(l.toll) + '</td>' +
+      '<td>' + fmt(l.repairAmt) + '</td>' +
+      '<td style="max-width:120px;white-space:normal;text-align:left;">' + (l.repairNote||'-') + '</td>' +
+      '<td>' + (l.dept.time||'') + '</td>' +
+      '<td>' + (l.arr.time||'') + '</td>' +
+      '<td>' + editBtn + '</td>' +
+      '<td>' + delBtn + '</td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
 
-  const tot = {
-    dist:   logs.reduce((s,l) => s+(l.distance||0), 0),
-    fuel:   logs.reduce((s,l) => s+(l.fuelAmt||0), 0),
-    fuelL:  logs.reduce((s,l) => s+(l.fuelL||0), 0),
-    toll:   logs.reduce((s,l) => s+(l.toll||0), 0),
-    repair: logs.reduce((s,l) => s+(l.repairAmt||0), 0)
+  var tot = {
+    dist:   logs.reduce(function(s,l) { return s+(l.distance||0); }, 0),
+    fuel:   logs.reduce(function(s,l) { return s+(l.fuelAmt||0); }, 0),
+    fuelL:  logs.reduce(function(s,l) { return s+(l.fuelL||0); }, 0),
+    toll:   logs.reduce(function(s,l) { return s+(l.toll||0); }, 0),
+    repair: logs.reduce(function(s,l) { return s+(l.repairAmt||0); }, 0)
   };
-  tbody.innerHTML += `
-    <tr class="total-row">
-      <td colspan="5" style="text-align:right;">합 계</td>
-      <td colspan="2" style="text-align:center;">${tot.dist.toLocaleString()} km 주행</td>
-      <td></td><td colspan="2"></td>
-      <td>${tot.fuel.toLocaleString()}원</td>
-      <td>${tot.fuelL.toLocaleString()}L</td>
-      <td>${tot.toll.toLocaleString()}원</td>
-      <td>${tot.repair.toLocaleString()}원</td>
-      <td colspan="4"></td>
-    </tr>`;
-  info.textContent = `총 ${logs.length}건 | 주행거리: ${tot.dist.toLocaleString()} km | 주유비: ${tot.fuel.toLocaleString()}원 | 총비용: ${(tot.fuel+tot.toll+tot.repair).toLocaleString()}원`;
+  tbody.innerHTML += '<tr class="total-row">' +
+    '<td colspan="5" style="text-align:right;">합 계</td>' +
+    '<td colspan="2" style="text-align:center;">' + tot.dist.toLocaleString() + ' km 주행</td>' +
+    '<td></td><td colspan="2"></td>' +
+    '<td>' + tot.fuel.toLocaleString() + '원</td>' +
+    '<td>' + tot.fuelL.toLocaleString() + 'L</td>' +
+    '<td>' + tot.toll.toLocaleString() + '원</td>' +
+    '<td>' + tot.repair.toLocaleString() + '원</td>' +
+    '<td colspan="5"></td>' +
+    '</tr>';
+  info.textContent = '총 ' + logs.length + '건 | 주행거리: ' + tot.dist.toLocaleString() + ' km | 주유비: ' + tot.fuel.toLocaleString() + '원 | 총비용: ' + (tot.fuel+tot.toll+tot.repair).toLocaleString() + '원';
 }
 
 async function deleteLog(id) {
@@ -952,6 +975,104 @@ async function deleteLog(id) {
   DB.logs = DB.logs.filter(l => l.id !== id);
   renderList();
   toast('운행 기록이 삭제되었습니다.', 'error');
+}
+
+function startInlineEdit(id) {
+  if (SESSION && SESSION.role !== 'admin') { toast('관리자만 수정할 수 있습니다.', 'error'); return; }
+  var l = DB.logs.find(function(x) { return x.id === id; });
+  if (!l) { toast('해당 기록을 찾을 수 없습니다.', 'error'); return; }
+  if (_editingId !== null) renderList();
+  _editingId = id;
+  var row = document.querySelector('#listBody tr[data-id="' + id + '"]');
+  if (!row) { toast('수정할 행을 찾을 수 없습니다.', 'error'); _editingId = null; return; }
+  var rowNum = row.querySelector('td:first-child').textContent;
+  row.classList.add('editing');
+  var esc = function(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
+  var vOpts = DB.vehicles.map(function(v) {
+    return '<option value="' + v.id + '"' + (v.id === l.vehicleId ? ' selected' : '') + '>' + esc(v.number) + '</option>';
+  }).join('');
+  row.innerHTML =
+    '<td style="font-weight:bold;color:#e65100;font-size:0.7rem;">✏️<br>' + rowNum + '</td>' +
+    '<td><select class="ie-sel" data-f="vehicleId">' + vOpts + '</select></td>' +
+    '<td><input type="date" class="ie-inp" data-f="date" value="' + esc(l.date) + '"></td>' +
+    '<td><select class="ie-sel" data-f="category">' +
+      '<option value="출퇴근"' + (l.category==='출퇴근'?' selected':'') + '>출퇴근</option>' +
+      '<option value="업무용"' + (l.category==='업무용'?' selected':'') + '>업무용</option>' +
+      '<option value="기타"' + (l.category==='기타'?' selected':'') + '>기타</option>' +
+    '</select></td>' +
+    '<td><input type="text" class="ie-inp" data-f="driver" value="' + esc(l.driver) + '"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="deptOdo" value="' + (l.dept ? l.dept.odometer||0 : 0) + '"></td>' +
+    '<td><input type="text" class="ie-inp" data-f="deptLoc" value="' + esc(l.dept ? l.dept.location : '') + '"></td>' +
+    '<td><input type="text" class="ie-inp ie-wide" data-f="purpose" value="' + esc(l.purpose) + '"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="arrOdo" value="' + (l.arr ? l.arr.odometer||0 : 0) + '"></td>' +
+    '<td><input type="text" class="ie-inp" data-f="arrLoc" value="' + esc(l.arr ? l.arr.location : '') + '"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="fuelAmt" value="' + (l.fuelAmt||0) + '" min="0"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="fuelL" value="' + (l.fuelL||0) + '" min="0" step="0.01"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="toll" value="' + (l.toll||0) + '" min="0"></td>' +
+    '<td><input type="number" class="ie-inp ie-num" data-f="repairAmt" value="' + (l.repairAmt||0) + '" min="0"></td>' +
+    '<td><input type="text" class="ie-inp" data-f="repairNote" value="' + esc(l.repairNote) + '"></td>' +
+    '<td><input type="time" class="ie-inp" data-f="deptTime" value="' + esc(l.dept ? l.dept.time : '') + '"></td>' +
+    '<td><input type="time" class="ie-inp" data-f="arrTime" value="' + esc(l.arr ? l.arr.time : '') + '"></td>' +
+    '<td><button class="btn-save-ie" onclick="saveInlineEdit(\'' + id + '\')">💾 저장</button>' +
+    '<button class="btn-cancel-ie" onclick="cancelInlineEdit()">취소</button></td>' +
+    '<td><button class="btn btn-danger" onclick="deleteLog(\'' + id + '\')">삭제</button></td>';
+}
+
+async function saveInlineEdit(id) {
+  var row = document.querySelector('#listBody tr[data-id="' + id + '"]');
+  if (!row) return;
+  var g = function(f) { return row.querySelector('[data-f="' + f + '"]'); };
+  var vid = g('vehicleId').value;
+  var veh = DB.vehicles.find(function(v) { return v.id === vid; });
+  var date = g('date').value;
+  var category = g('category').value;
+  var driver = g('driver').value.trim();
+  var deptOdo = parseFloat(g('deptOdo').value) || 0;
+  var deptLoc = g('deptLoc').value.trim();
+  var purpose = g('purpose').value.trim();
+  var arrOdo = parseFloat(g('arrOdo').value) || 0;
+  var arrLoc = g('arrLoc').value.trim();
+  var fuelAmt = parseFloat(g('fuelAmt').value) || 0;
+  var fuelL = parseFloat(g('fuelL').value) || 0;
+  var toll = parseFloat(g('toll').value) || 0;
+  var repairAmt = parseFloat(g('repairAmt').value) || 0;
+  var repairNote = g('repairNote').value.trim();
+  var deptTime = g('deptTime').value;
+  var arrTime = g('arrTime').value;
+  if (!date || !driver) { toast('필수 항목(운행일자·운전자)을 입력하세요.', 'error'); return; }
+  if (arrOdo > 0 && deptOdo > 0 && arrOdo < deptOdo) { toast('도착 계기판이 출발 계기판보다 작습니다.', 'error'); return; }
+  var patch = {
+    vehicle_id: vid, vehicle_number: veh ? veh.number : '',
+    date: date, category: category, driver: driver, purpose: purpose,
+    dept_location: deptLoc, dept_time: deptTime, dept_odometer: deptOdo,
+    arr_location: arrLoc, arr_time: arrTime, arr_odometer: arrOdo,
+    distance: arrOdo - deptOdo,
+    fuel_amt: fuelAmt, fuel_l: fuelL, toll: toll,
+    repair_amt: repairAmt, repair_note: repairNote
+  };
+  showLoading('저장 중...');
+  var result = await sb.from('vld_logs').update(patch).eq('id', id);
+  hideLoading();
+  if (result.error) { toast('저장 실패: ' + result.error.message, 'error'); return; }
+  var idx = DB.logs.findIndex(function(x) { return x.id === id; });
+  if (idx !== -1) {
+    DB.logs[idx] = Object.assign({}, DB.logs[idx], {
+      vehicleId: vid, vehicleNumber: veh ? veh.number : '',
+      date: date, category: category, driver: driver, purpose: purpose,
+      dept: { location: deptLoc, time: deptTime, odometer: deptOdo },
+      arr: { location: arrLoc, time: arrTime, odometer: arrOdo },
+      distance: arrOdo - deptOdo, fuelAmt: fuelAmt, fuelL: fuelL,
+      toll: toll, repairAmt: repairAmt, repairNote: repairNote
+    });
+  }
+  toast('운행일지가 수정되었습니다. ✅');
+  _editingId = null;
+  renderList();
+}
+
+function cancelInlineEdit() {
+  _editingId = null;
+  renderList();
 }
 
 // ════════════════════════════════
